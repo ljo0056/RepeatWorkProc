@@ -24,7 +24,7 @@ int RepeatWorkProc::Activate()
 int RepeatWorkProc::Deactivate()
 {
     CTimerLockerManager& timer_manager = CTimerLockerManager::GetInstance();
-    for (auto it_timer = m_map_timer.begin() ; it_timer != m_map_timer.end() ; it_timer++)
+    for (auto it_timer = m_map_timer.begin(); it_timer != m_map_timer.end(); it_timer++)
         timer_manager.DeleteTimerLocker(it_timer->second);
 
     m_map_timer.clear();
@@ -94,6 +94,22 @@ int RepeatWorkProc::DeleteWork(int work_type)
     return 0;
 }
 
+int RepeatWorkProc::AllDeleteWork()
+{
+    CTimerLockerManager& timer_manager = CTimerLockerManager::GetInstance();
+
+    for (auto timer = m_map_timer.begin(); timer != m_map_timer.end(); timer++)
+        timer_manager.DeleteTimerLocker(timer->second);
+    m_map_timer.clear();
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_queue_repeat_mutex);
+        m_map_work.clear();
+    }
+
+    return 0;
+}
+
 void RepeatWorkProc::ThreadLoop()
 {
     m_thread_running = true;
@@ -103,17 +119,22 @@ void RepeatWorkProc::ThreadLoop()
         if (false == m_thread_running)
             break;
 
-        std::lock_guard<std::recursive_mutex> lock(m_queue_repeat_mutex);
         while (m_queue_repeat_work.size())
         {
             int work_type = m_queue_repeat_work.front();
             m_queue_repeat_work.pop();
 
-            auto it = m_map_work.find(work_type);
-            if (it == m_map_work.end())
-                continue;
+            RepeatWork func;
+            {
+                std::lock_guard<std::recursive_mutex> lock(m_queue_repeat_mutex);
 
-            RepeatWork& func = it->second;
+                auto it = m_map_work.find(work_type);
+                if (it == m_map_work.end())
+                    continue;
+
+                func = it->second;
+            }
+
             if (func)
                 func();
         }
@@ -133,14 +154,13 @@ int TestRepeatWorkProc()
 
     int count_func1 = 0;
     auto func1 = [&count_func1]()
-    {
-        RepeatWorkProc& repeat_work = RepeatWorkProc::GetInstance();
+        {
+            RepeatWorkProc& repeat_work = RepeatWorkProc::GetInstance();
 
-        count_func1++;
-        printf("Work Count[%d]\n", count_func1);
-        if (5 == count_func1)
-            repeat_work.DeleteWork(TEST_WORK_1);
-    };
+            count_func1++;
+            if (5 == count_func1)
+                repeat_work.DeleteWork(TEST_WORK_1);
+        };
 
     repeat_work.AddWork(TEST_WORK_1, 1000 * 1, func1);
 

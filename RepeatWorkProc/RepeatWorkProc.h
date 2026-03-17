@@ -65,6 +65,7 @@ public:
     ///  @param work_type[in] : AddWork() 에서 사용한 Work 의 식별자
     ///  @return : 성공 시에 0, 실패 시에 1이상 값을 리턴
     int  DeleteWork(int work_type);
+    int  AllDeleteWork();
 };
 
 int TestRepeatWorkProc();

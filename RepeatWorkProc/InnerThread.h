@@ -7,6 +7,7 @@
 
 #include <thread>
 #include <chrono>
+#include <string>
 
 class InnerThread
 {
